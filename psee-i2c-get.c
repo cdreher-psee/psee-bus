@@ -10,13 +10,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <endian.h>
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define OPTION_DRY (1<<0)
+#define MAX_READ 16
 
 static void print_usage(char *exec_name) {
 	printf("usage: %s [options] I2C_BUS DEV_ADDR REGISTER [NDATA] \n"
@@ -37,10 +38,11 @@ int main(int argc, char* argv[])
 	int slave_addr;
 	uint32_t reg_addr;
 	int ndata = 1;
-	const char *buffer;
+	ssize_t read_bytes = 0;
+	uint32_t buffer[MAX_READ];
 	/* for getopt */
 	int opt;
-	uint32_t options = 0;
+	int dry = 0;
 	/* for strtol */
 	char* endptr;
 
@@ -48,7 +50,7 @@ int main(int argc, char* argv[])
 	while ((opt = getopt(argc, argv, "nh")) != -1) {
 		switch (opt) {
 		case 'n':
-			options |= OPTION_DRY;
+			dry = 1;
 			break;
 		case 'h':
 			print_usage(argv[0]);
@@ -110,7 +112,7 @@ int main(int argc, char* argv[])
 		printf("Failed to parse NDATA: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	if ((ndata <= 0) || (ndata > 16))
+	if ((ndata <= 0) || (ndata > MAX_READ))
 	{
 		printf("Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
@@ -133,40 +135,22 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	char buf[10] = {0};
-	float data;
-	char channel;
-
-	for(int i = 0; i<4; i++)
+	buffer[0] = htobe32(reg_addr);
+	if (!dry && write(i2c_dev,buffer,sizeof(buffer[0])) != sizeof(buffer[0]))
 	{
-		// Using I2C Read
-		if (read(i2c_dev,buf,2) != 2)
-		{
-			/* ERROR HANDLING: i2c transaction failed */
-			printf("Failed to read from the i2c bus.\n");
-			buffer = strerror(errno);
-			printf(buffer);
-			printf("\n\n");
-		}
-		else
-		{
-			data = (float)((buf[0] & 0b00001111)<<8)+buf[1];
-			data = data/4096*5;
-			channel = ((buf[0] & 0b00110000)>>4);
-			printf("Channel %02d Data:  %04f\n",channel,data);
-		}
+		printf("Failed to write to the i2c bus: %s\n", strerror(errno));
+		return EXIT_FAILURE;
 	}
 
-	//unsigned char reg = 0x10; // Device register to access
-	//buf[0] = reg;
-	buf[0] = 0b11110000;
-
-	if (write(i2c_dev,buf,1) != 1)
+	if (!dry)
 	{
-		/* ERROR HANDLING: i2c transaction failed */
-		printf("Failed to write to the i2c bus.\n");
-		buffer = strerror(errno);
-		printf(buffer);
-		printf("\n\n");
+		read_bytes =  read(i2c_dev,buffer,ndata);
 	}
+	printf("Read %ld bytes with status %s\n", read_bytes, strerror(errno));
+	for (ndata = 0; ndata < (read_bytes / sizeof(buffer[0])); ndata++)
+	{
+		printf("data[%d] = 0x%08x\n", ndata, be32toh(buffer[ndata]));
+	}
+
+	return EXIT_SUCCESS;
 }
