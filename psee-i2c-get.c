@@ -1,6 +1,13 @@
+/*******************************************************************
+ * File : psee-i2c-get.c                                           *
+ *                                                                 *
+ * Copyright: (c) 2020 Prophesee                                   *
+ *******************************************************************/
+
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <linux/i2c-dev.h>
@@ -9,26 +16,121 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define OPTION_DRY (1<<0)
+
+static void print_usage(char *exec_name) {
+	printf("usage: %s [options] I2C_BUS DEV_ADDR REGISTER [NDATA] \n"
+		"I2C_BUS: complete path, such as /dev/i2c-1\n"
+		"DEV_ADDR: device address (Huahine is 0x3c)\n"
+		"REGISTER: address of the first register to be read\n"
+		"NDATA: number of 32-bits registers to read (default: 1)\n"
+		"options:\n"
+		"\t-n:\tdry run: don't actually write the memory\n"
+		"\t-h:\tdisplay this message and quit with success\n",
+		exec_name);
+}
+
 int main(int argc, char* argv[])
 {
-	int file;
-	char filename[40];
+	char* i2c_dev_name;
+	int i2c_dev;
+	int slave_addr;
+	uint32_t reg_addr;
+	int ndata = 1;
 	const char *buffer;
-	int addr = 0b00101001;		// The I2C address of the ADC
+	/* for getopt */
+	int opt;
+	uint32_t options = 0;
+	/* for strtol */
+	char* endptr;
 
-	sprintf(filename,"/dev/i2c-2");
-	if ((file = open(filename,O_RDWR)) < 0)
-	{
-		printf("Failed to open the bus.");
-		/* ERROR HANDLING; you can check errno to see what went wrong */
-		exit(1);
+	/* options */
+	while ((opt = getopt(argc, argv, "nh")) != -1) {
+		switch (opt) {
+		case 'n':
+			options |= OPTION_DRY;
+			break;
+		case 'h':
+			print_usage(argv[0]);
+			return EXIT_SUCCESS;
+			break;
+		default:
+			print_usage(argv[0]);
+			return EXIT_FAILURE;
+			break;
+		}
 	}
 
-	if (ioctl(file,I2C_SLAVE,addr) < 0)
+	/* check for enough mandatory arguments */
+	if (optind + 3 >= argc) {
+		print_usage(argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	/* I2C_BUS */
+	i2c_dev_name = argv[optind];
+	if ((i2c_dev = open(i2c_dev_name,O_RDWR)) < 0)
 	{
-		printf("Failed to acquire bus access and/or talk to slave.\n");
-		/* ERROR HANDLING; you can check errno to see what went wrong */
-		exit(1);
+		printf("Failed to open the bus: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	optind++;
+
+	/* DEV_ADDR */
+	errno = 0;
+	slave_addr = strtol(argv[optind], &endptr, 0);
+	if (errno)
+	{
+		printf("Failed to parse slave address: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	if ((slave_addr < 0x4) || (slave_addr >= 0x78))
+	{
+		printf("Addr 0x%x is either invalid or reserved\n", slave_addr);
+		return EXIT_FAILURE;
+	}
+	optind++;
+
+	/* REGISTER */
+	errno = 0;
+	reg_addr = strtol(argv[optind], &endptr, 0);
+	if (errno)
+	{
+		printf("Failed to parse reg address: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	optind++;
+
+	/* NDATA */
+	errno = 0;
+	if (optind != argc)
+		ndata = strtol(argv[optind], &endptr, 0);
+	if (errno)
+	{
+		printf("Failed to parse NDATA: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	if ((ndata <= 0) || (ndata > 16))
+	{
+		printf("Can't transfer %d data\n", ndata);
+		return EXIT_FAILURE;
+	}
+	optind++;
+
+	/* check for spare arguments */
+	if (optind != argc) {
+		printf("Too many arguments\n");
+		print_usage(argv[0]);
+		return EXIT_FAILURE;
+	}
+
+
+	/* Actual program starts here */
+
+	if (ioctl(i2c_dev,I2C_SLAVE,slave_addr) < 0)
+	{
+		printf("Failed to acquire bus access and/or talk to slave: %s\n", strerror(errno));
+		return EXIT_FAILURE;
 	}
 
 	char buf[10] = {0};
@@ -38,7 +140,7 @@ int main(int argc, char* argv[])
 	for(int i = 0; i<4; i++)
 	{
 		// Using I2C Read
-		if (read(file,buf,2) != 2)
+		if (read(i2c_dev,buf,2) != 2)
 		{
 			/* ERROR HANDLING: i2c transaction failed */
 			printf("Failed to read from the i2c bus.\n");
@@ -59,7 +161,7 @@ int main(int argc, char* argv[])
 	//buf[0] = reg;
 	buf[0] = 0b11110000;
 
-	if (write(file,buf,1) != 1)
+	if (write(i2c_dev,buf,1) != 1)
 	{
 		/* ERROR HANDLING: i2c transaction failed */
 		printf("Failed to write to the i2c bus.\n");

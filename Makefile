@@ -5,7 +5,7 @@ DESTDIR= usr/bin
 
 all: $(BINARIES)
 
-psee-i2c-get:
+psee-i2c-get: psee-i2c-get.c
 	$(CC) $(CFLAGS) -o $@ psee-i2c-get.c
 
 install: $(BINARIES)
