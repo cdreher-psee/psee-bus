@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 
 	if (!dry)
 	{
-		read_bytes =  read(i2c_dev,buffer,ndata);
+		read_bytes =  read(i2c_dev,buffer,ndata*(sizeof(buffer[0])));
 	}
 	printf("Read %ld bytes with status %s\n", read_bytes, strerror(errno));
 	for (ndata = 0; ndata < (read_bytes / sizeof(buffer[0])); ndata++)
