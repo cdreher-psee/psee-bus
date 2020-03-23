@@ -35,6 +35,7 @@ int main(int argc, char* argv[])
 	int ret = 0;
 	char* spi_dev_name;
 	int spi_dev;
+	int mode = SPI_MODE_3;
 	struct spi_ioc_transfer xfer[2];
 	uint32_t reg_addr;
 	int ndata;
@@ -114,6 +115,11 @@ int main(int argc, char* argv[])
 
 
 	/* Actual program starts here */
+	if (ioctl(spi_dev, SPI_IOC_WR_MODE, &mode)!=0)
+	{
+		printf("Failed to set SPI device mode: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 	buffer[0] = htobe32(reg_addr);
 	memset(xfer, 0, sizeof xfer);
