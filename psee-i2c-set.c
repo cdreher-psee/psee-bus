@@ -23,7 +23,7 @@ static void print_usage(char *exec_name) {
 	printf("usage: %s [options] I2C_BUS DEV_ADDR REGISTER [VALUE] ...\n"
 		"I2C_BUS: complete path, such as /dev/i2c-1\n"
 		"DEV_ADDR: device address (Huahine is 0x3c)\n"
-		"REGISTER: address of the first register to be read\n"
+		"REGISTER: address of the first register to be written\n"
 		"VALUE: 32-bits values to write in registers\n"
 		"options:\n"
 		"\t-n:\tdry run: don't actually write the memory\n"
