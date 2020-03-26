@@ -32,6 +32,7 @@ static void print_usage(char *exec_name) {
 
 int main(int argc, char* argv[])
 {
+	int ret = 0;
 	char* spi_dev_name;
 	int spi_dev;
 	struct spi_ioc_transfer xfer[2];
@@ -129,10 +130,10 @@ int main(int argc, char* argv[])
 	xfer[1].len = ndata*sizeof(buffer[0]);
 
 	if (!dry)
-		i = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
-	if (i != 0)
+		ret = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
+	if (ret != (ndata+1)*sizeof(buffer[0]))
 	{
-		printf("Failed to read on the spi bus %d: %s\n", i, strerror(errno));
+		printf("Failed to read on the spi bus %d: %s\n", ret, strerror(errno));
 		return EXIT_FAILURE;
 	}
 

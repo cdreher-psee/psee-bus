@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 
 	if (!dry)
 		ret = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
-	if (ret != 0)
+	if (ret != (ndata+1)*sizeof(buffer[0]))
 	{
 		printf("Failed to write to the spi bus %d: %s\n", ret, strerror(errno));
 		return EXIT_FAILURE;
