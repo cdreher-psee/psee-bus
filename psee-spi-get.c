@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
 	/* for getopt */
 	int opt;
 	int dry = 0;
-	int i;
+	int i = 0;
 	/* for strtol */
 	char* endptr;
 
@@ -128,9 +128,11 @@ int main(int argc, char* argv[])
 	xfer[1].rx_buf = (uint64_t)&buffer[0];
 	xfer[1].len = ndata*sizeof(buffer[0]);
 
-	if (!dry && (ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer)!=0))
+	if (!dry)
+		i = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
+	if (i != 0)
 	{
-		printf("Failed to read on the spi bus: %s\n", strerror(errno));
+		printf("Failed to read on the spi bus %d: %s\n", i, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
