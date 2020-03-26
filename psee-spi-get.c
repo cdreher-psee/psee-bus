@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
 	memset(xfer, 0, sizeof xfer);
 	xfer[0].tx_buf = (uint64_t)&buffer[0];
 	xfer[0].len = sizeof(buffer[0]);
-	xfer[0].delay_usecs = 1; //need to wait 64 sensor clk before read
+	xfer[0].delay_usecs = 4; //need to wait 64 clk before read 3.2us@20MHz
 
 	xfer[1].rx_buf = (uint64_t)&buffer[0];
 	xfer[1].len = ndata*sizeof(buffer[0]);
