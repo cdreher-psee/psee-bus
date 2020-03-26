@@ -85,7 +85,9 @@ int main(int argc, char* argv[])
 		printf("Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	buffer[0] = htobe32(reg_addr);
+	/* mutate address to add command */
+	reg_addr >>= 2;
+	reg_addr |= (0lu << 31); /* write operation */
 	optind++;
 
 	/* VALUE */
@@ -107,9 +109,12 @@ int main(int argc, char* argv[])
 		optind++;
 		ndata++;
 	}
+	reg_addr |= ((ndata>1) << 30); /* burst operation */
+
 
 	/* Actual program starts here */
 
+	buffer[0] = htobe32(reg_addr);
 	memset(xfer, 0, sizeof xfer);
 	xfer[0].tx_buf = (uint64_t)&buffer[0];
 	xfer[0].len = sizeof(buffer[0]);

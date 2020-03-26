@@ -86,7 +86,9 @@ int main(int argc, char* argv[])
 		printf("Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	buffer[0] = htobe32(reg_addr);
+	/* mutate address to add command */
+	reg_addr >>= 2;
+	reg_addr |= (1lu << 31); /* read operation */
 	optind++;
 
 	/* NDATA */
@@ -106,6 +108,7 @@ int main(int argc, char* argv[])
 		printf("Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
 	}
+	reg_addr |= ((ndata>1) << 30); /* burst operation */
 
 	/* check for spare arguments */
 	if (optind != argc) {
@@ -116,6 +119,7 @@ int main(int argc, char* argv[])
 
 	/* Actual program starts here */
 
+	buffer[0] = htobe32(reg_addr);
 	memset(xfer, 0, sizeof xfer);
 	xfer[0].tx_buf = (uint64_t)&buffer[0];
 	xfer[0].len = sizeof(buffer[0]);
