@@ -63,7 +63,8 @@ int main(int argc, char* argv[])
 	}
 
 	/* check for enough mandatory arguments */
-	if (optind + 3 >= argc) {
+	if (optind + 2 > argc) {
+		printf("Missing some arguments.\n");
 		print_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
@@ -91,7 +92,10 @@ int main(int argc, char* argv[])
 	/* NDATA */
 	errno = 0;
 	if (optind != argc)
+	{
 		ndata = strtol(argv[optind], &endptr, 0);
+		optind++;
+	}
 	if (errno)
 	{
 		printf("Failed to parse NDATA: %s\n", strerror(errno));
@@ -102,7 +106,6 @@ int main(int argc, char* argv[])
 		printf("Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
 	}
-	optind++;
 
 	/* check for spare arguments */
 	if (optind != argc) {

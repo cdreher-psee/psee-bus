@@ -65,7 +65,8 @@ int main(int argc, char* argv[])
 	}
 
 	/* check for enough mandatory arguments */
-	if (optind + 3 >= argc) {
+	if (optind + 3 > argc) {
+		printf("Missing some arguments.\n");
 		print_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
