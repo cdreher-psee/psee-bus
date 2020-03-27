@@ -50,6 +50,7 @@ int main(int argc, char* argv[])
 	while ((opt = getopt(argc, argv, "nh")) != -1) {
 		switch (opt) {
 		case 'n':
+			printf("RUNNING DRY\n");
 			dry = 1;
 			break;
 		case 'h':
@@ -77,6 +78,7 @@ int main(int argc, char* argv[])
 		printf("Failed to open the bus: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
+	printf("I2C_BUS: %s\n", i2c_dev_name);
 	optind++;
 
 	/* DEV_ADDR */
@@ -92,6 +94,7 @@ int main(int argc, char* argv[])
 		printf("Addr 0x%x is either invalid or reserved\n", slave_addr);
 		return EXIT_FAILURE;
 	}
+	printf("DEV_ADDR: 0x%X\n", slave_addr);
 	optind++;
 
 	/* REGISTER */
@@ -102,6 +105,7 @@ int main(int argc, char* argv[])
 		printf("Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
+	printf("REGISTER: 0x%X\n", reg_addr);
 	optind++;
 
 	/* NDATA */
@@ -121,6 +125,7 @@ int main(int argc, char* argv[])
 		printf("Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
 	}
+	printf("NDATA: %d\n", ndata);
 
 	/* check for spare arguments */
 	if (optind != argc) {

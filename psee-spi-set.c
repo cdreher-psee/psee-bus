@@ -50,6 +50,7 @@ int main(int argc, char* argv[])
 	while ((opt = getopt(argc, argv, "nh")) != -1) {
 		switch (opt) {
 		case 'n':
+			printf("RUNNING DRY\n");
 			dry = 1;
 			break;
 		case 'h':
@@ -77,6 +78,7 @@ int main(int argc, char* argv[])
 		printf("Failed to open the bus: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
+	printf("SPI_DEV: %s\n", spi_dev_name);
 	optind++;
 
 	/* REGISTER */
@@ -87,6 +89,7 @@ int main(int argc, char* argv[])
 		printf("Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
+	printf("REGISTER: 0x%X\n", reg_addr);
 	/* mutate address to add command */
 	reg_addr >>= 2;
 	reg_addr |= (0lu << 31); /* write operation */
@@ -111,6 +114,7 @@ int main(int argc, char* argv[])
 		optind++;
 		ndata++;
 	}
+	printf("NDATA: %d\n", ndata);
 	reg_addr |= ((ndata>1) << 30); /* burst operation */
 
 
