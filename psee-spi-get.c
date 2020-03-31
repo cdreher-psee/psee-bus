@@ -1,5 +1,5 @@
 /*******************************************************************
- * File : psee-spi-set.c                                           *
+ * File : psee-spi-get.c                                           *
  *                                                                 *
  * Copyright: (c) 2020 Prophesee                                   *
  *******************************************************************/
@@ -19,13 +19,16 @@
 
 #define MAX_READ 16
 
-static void print_usage(char *exec_name) {
-	printf("usage: %s [options] SPI_DEV REGISTER [NDATA] \n"
+#define verbose_printf if(verbose) printf
+
+static void print_usage(char *exec_name, FILE* out_fd) {
+	fprintf(out_fd, "usage: %s [options] SPI_DEV REGISTER [NDATA] \n"
 		"SPI_DEV: complete path, such as /dev/spidev1.0\n"
 		"REGISTER: address of the first register to be read\n"
 		"NDATA: number of 32-bits registers to read (default: 1)\n"
 		"options:\n"
-		"\t-n:\tdry run: don't actually write the memory\n"
+		"\t-n:\tdry run: don't actually read the registers\n"
+		"\t-v:\tverbose: display transfer information on stdout\n"
 		"\t-h:\tdisplay this message and quit with success\n",
 		exec_name);
 }
@@ -33,6 +36,7 @@ static void print_usage(char *exec_name) {
 int main(int argc, char* argv[])
 {
 	int ret = 0;
+	int verbose = 0;
 	char* spi_dev_name;
 	int spi_dev;
 	int mode = SPI_MODE_3;
@@ -48,27 +52,31 @@ int main(int argc, char* argv[])
 	char* endptr;
 
 	/* options */
-	while ((opt = getopt(argc, argv, "nh")) != -1) {
+	while ((opt = getopt(argc, argv, "nvh")) != -1) {
 		switch (opt) {
 		case 'n':
-			printf("RUNNING DRY\n");
 			dry = 1;
 			break;
+		case 'v':
+			verbose = 1;
+			break;
 		case 'h':
-			print_usage(argv[0]);
+			print_usage(argv[0], stdout);
 			return EXIT_SUCCESS;
 			break;
 		default:
-			print_usage(argv[0]);
+			print_usage(argv[0], stderr);
 			return EXIT_FAILURE;
 			break;
 		}
 	}
 
+	if (dry) verbose_printf("-- dry run --\n");
+
 	/* check for enough mandatory arguments */
 	if (optind + 2 > argc) {
-		printf("Missing some arguments.\n");
-		print_usage(argv[0]);
+		fprintf(stderr, "Missing some arguments.\n");
+		print_usage(argv[0], stderr);
 		return EXIT_FAILURE;
 	}
 
@@ -76,10 +84,10 @@ int main(int argc, char* argv[])
 	spi_dev_name = argv[optind];
 	if ((spi_dev = open(spi_dev_name,O_RDWR)) < 0)
 	{
-		printf("Failed to open the bus: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to open the bus: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	printf("SPI_DEV: %s\n", spi_dev_name);
+	verbose_printf("SPI device: %s\n", spi_dev_name);
 	optind++;
 
 	/* REGISTER */
@@ -87,10 +95,10 @@ int main(int argc, char* argv[])
 	reg_addr = strtol(argv[optind], &endptr, 0);
 	if (errno)
 	{
-		printf("Failed to parse reg address: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	printf("REGISTER: 0x%X\n", reg_addr);
+	verbose_printf("Register: 0x%X\n", reg_addr);
 	/* mutate address to add command */
 	reg_addr >>= 2;
 	reg_addr |= (1lu << 31); /* read operation */
@@ -105,28 +113,28 @@ int main(int argc, char* argv[])
 	}
 	if (errno)
 	{
-		printf("Failed to parse NDATA: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to parse NDATA: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 	if ((ndata <= 0) || (ndata > MAX_READ))
 	{
-		printf("Can't transfer %d data\n", ndata);
+		fprintf(stderr, "Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
 	}
-	printf("NDATA: %d\n", ndata);
+	verbose_printf("ndata: %d\n", ndata);
 	reg_addr |= ((ndata>1) << 30); /* burst operation */
 
 	/* check for spare arguments */
 	if (optind != argc) {
-		printf("Too many arguments\n");
-		print_usage(argv[0]);
+		fprintf(stderr, "Too many arguments\n");
+		print_usage(argv[0], stderr);
 		return EXIT_FAILURE;
 	}
 
 	/* Actual program starts here */
 	if (ioctl(spi_dev, SPI_IOC_WR_MODE, &mode)!=0)
 	{
-		printf("Failed to set SPI device mode: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to set SPI device mode: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -143,14 +151,17 @@ int main(int argc, char* argv[])
 		ret = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
 	if (ret != (ndata+1)*sizeof(buffer[0]))
 	{
-		printf("Failed to read on the spi bus %d: %s\n", ret, strerror(errno));
+		fprintf(stderr, "Failed to read on the spi bus %d: %s\n", ret, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
-	printf("SPI read result: %s\n", strerror(errno));
+	verbose_printf("SPI read result: %s\n", strerror(errno));
 	for (i = 0; i < ndata; i++)
 	{
-		printf("data[%d] = 0x%08x\n", i, be32toh(buffer[i]));
+		if (verbose)
+			printf("data[%d] = 0x%08x\n", i, be32toh(buffer[i]));
+		else
+			printf("0x%08x\n", be32toh(buffer[i]));
 	}
 
 	return EXIT_SUCCESS;

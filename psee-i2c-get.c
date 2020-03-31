@@ -19,20 +19,25 @@
 
 #define MAX_READ 16
 
-static void print_usage(char *exec_name) {
+#define verbose_printf if(verbose) printf
+
+static void print_usage(char *exec_name, FILE* out_fd) {
 	printf("usage: %s [options] I2C_BUS DEV_ADDR REGISTER [NDATA] \n"
 		"I2C_BUS: complete path, such as /dev/i2c-1\n"
 		"DEV_ADDR: device address (Huahine is 0x3c)\n"
 		"REGISTER: address of the first register to be read\n"
 		"NDATA: number of 32-bits registers to read (default: 1)\n"
 		"options:\n"
-		"\t-n:\tdry run: don't actually write the memory\n"
+		"\t-n:\tdry run: don't actually read the registers\n"
+		"\t-v:\tverbose: display transfer information on stdout\n"
 		"\t-h:\tdisplay this message and quit with success\n",
 		exec_name);
 }
 
 int main(int argc, char* argv[])
 {
+	int ret = 0;
+	int verbose = 0;
 	char* i2c_dev_name;
 	int i2c_dev;
 	int slave_addr;
@@ -47,27 +52,31 @@ int main(int argc, char* argv[])
 	char* endptr;
 
 	/* options */
-	while ((opt = getopt(argc, argv, "nh")) != -1) {
+	while ((opt = getopt(argc, argv, "nvh")) != -1) {
 		switch (opt) {
 		case 'n':
-			printf("RUNNING DRY\n");
 			dry = 1;
 			break;
+		case 'v':
+			verbose = 1;
+			break;
 		case 'h':
-			print_usage(argv[0]);
+			print_usage(argv[0], stdout);
 			return EXIT_SUCCESS;
 			break;
 		default:
-			print_usage(argv[0]);
+			print_usage(argv[0], stderr);
 			return EXIT_FAILURE;
 			break;
 		}
 	}
 
+	if (dry) verbose_printf("-- dry run --\n");
+
 	/* check for enough mandatory arguments */
 	if (optind + 3 > argc) {
-		printf("Missing some arguments.\n");
-		print_usage(argv[0]);
+		fprintf(stderr, "Missing some arguments.\n");
+		print_usage(argv[0], stderr);
 		return EXIT_FAILURE;
 	}
 
@@ -75,10 +84,10 @@ int main(int argc, char* argv[])
 	i2c_dev_name = argv[optind];
 	if ((i2c_dev = open(i2c_dev_name,O_RDWR)) < 0)
 	{
-		printf("Failed to open the bus: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to open the bus: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	printf("I2C_BUS: %s\n", i2c_dev_name);
+	verbose_printf("I2C bus: %s\n", i2c_dev_name);
 	optind++;
 
 	/* DEV_ADDR */
@@ -86,15 +95,15 @@ int main(int argc, char* argv[])
 	slave_addr = strtol(argv[optind], &endptr, 0);
 	if (errno)
 	{
-		printf("Failed to parse slave address: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to parse slave address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 	if ((slave_addr < 0x4) || (slave_addr >= 0x78))
 	{
-		printf("Addr 0x%x is either invalid or reserved\n", slave_addr);
+		fprintf(stderr, "Addr 0x%x is either invalid or reserved\n", slave_addr);
 		return EXIT_FAILURE;
 	}
-	printf("DEV_ADDR: 0x%X\n", slave_addr);
+	verbose_printf("Device address: 0x%X\n", slave_addr);
 	optind++;
 
 	/* REGISTER */
@@ -102,10 +111,10 @@ int main(int argc, char* argv[])
 	reg_addr = strtol(argv[optind], &endptr, 0);
 	if (errno)
 	{
-		printf("Failed to parse reg address: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to parse reg address: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
-	printf("REGISTER: 0x%X\n", reg_addr);
+	verbose_printf("Register: 0x%X\n", reg_addr);
 	optind++;
 
 	/* NDATA */
@@ -117,20 +126,20 @@ int main(int argc, char* argv[])
 	}
 	if (errno)
 	{
-		printf("Failed to parse NDATA: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to parse NDATA: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 	if ((ndata <= 0) || (ndata > MAX_READ))
 	{
-		printf("Can't transfer %d data\n", ndata);
+		fprintf(stderr, "Can't transfer %d data\n", ndata);
 		return EXIT_FAILURE;
 	}
-	printf("NDATA: %d\n", ndata);
+	verbose_printf("ndata: %d\n", ndata);
 
 	/* check for spare arguments */
 	if (optind != argc) {
-		printf("Too many arguments\n");
-		print_usage(argv[0]);
+		fprintf(stderr, "Too many arguments\n");
+		print_usage(argv[0], stderr);
 		return EXIT_FAILURE;
 	}
 
@@ -138,7 +147,7 @@ int main(int argc, char* argv[])
 
 	if (ioctl(i2c_dev,I2C_SLAVE,slave_addr) < 0)
 	{
-		printf("Failed to acquire bus access and/or talk to slave: %s\n", strerror(errno));
+		fprintf(stderr, "Failed to acquire bus access or slave: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -151,13 +160,26 @@ int main(int argc, char* argv[])
 
 	if (!dry)
 	{
-		read_bytes =  read(i2c_dev,buffer,ndata*(sizeof(buffer[0])));
+		read_bytes = read(i2c_dev,buffer,ndata*(sizeof(buffer[0])));
 	}
-	printf("Read %ld bytes with status %s\n", read_bytes, strerror(errno));
-	for (ndata = 0; ndata < (read_bytes / sizeof(buffer[0])); ndata++)
+	if (read_bytes != ndata*(sizeof(buffer[0])))
 	{
-		printf("data[%d] = 0x%08x\n", ndata, be32toh(buffer[ndata]));
+		fprintf(stderr, "Failed to read on the i2c bus (got %ld): %s\n", read_bytes, strerror(errno));
+		ret = EXIT_FAILURE;
+	}
+	else
+	{
+		verbose_printf("Read %ld bytes with status %s\n", read_bytes, strerror(errno));
+		ret = EXIT_SUCCESS;
 	}
 
-	return EXIT_SUCCESS;
+	for (ndata = 0; ndata < (read_bytes / sizeof(buffer[0])); ndata++)
+	{
+		if (verbose)
+			printf("data[%d] = 0x%08x\n", ndata, be32toh(buffer[ndata]));
+		else
+			printf("0x%08x\n", be32toh(buffer[ndata]));
+	}
+
+	return ret;
 }
