@@ -27,6 +27,7 @@ static void print_usage(char *exec_name, FILE* out_fd) {
 		"REGISTER: address of the first register to be written\n"
 		"VALUE: 32-bits values to write in registers\n"
 		"options:\n"
+		"\t-f:\tfreq: specify the maximum frequency (in Hz) the device supports\n"
 		"\t-n:\tdry run: don't actually write the registers\n"
 		"\t-v:\tverbose: display transfer information on stdout\n"
 		"\t-h:\tdisplay this message and quit with success\n",
@@ -40,6 +41,8 @@ int main(int argc, char* argv[])
 	char* spi_dev_name;
 	int spi_dev;
 	int mode = SPI_MODE_3;
+	char* max_freq_str = NULL;
+	int max_freq_hz = 0;
 	struct spi_ioc_transfer xfer[2];
 	uint32_t reg_addr;
 	int ndata;
@@ -51,8 +54,11 @@ int main(int argc, char* argv[])
 	char* endptr;
 
 	/* options */
-	while ((opt = getopt(argc, argv, "nvh")) != -1) {
+	while ((opt = getopt(argc, argv, "f:nvh")) != -1) {
 		switch (opt) {
+		case 'f':
+			max_freq_str = optarg;
+			break;
 		case 'n':
 			dry = 1;
 			break;
@@ -88,6 +94,19 @@ int main(int argc, char* argv[])
 	}
 	verbose_printf("SPI device: %s\n", spi_dev_name);
 	optind++;
+
+	/* MAX FREQ */
+	errno = 0;
+	if (max_freq_str)
+	{
+		max_freq_hz = strtol(max_freq_str, &endptr, 0);
+	}
+	if (errno)
+	{
+		fprintf(stderr, "Failed to parse frequency: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	verbose_printf("Max device frequency: %d Hz\n", max_freq_hz);
 
 	/* REGISTER */
 	errno = 0;
@@ -137,9 +156,11 @@ int main(int argc, char* argv[])
 	memset(xfer, 0, sizeof xfer);
 	xfer[0].tx_buf = (uint64_t)&buffer[0];
 	xfer[0].len = sizeof(buffer[0]);
+	xfer[0].speed_hz = max_freq_hz;
 
 	xfer[1].tx_buf = (uint64_t)&buffer[1];
 	xfer[1].len = ndata*sizeof(buffer[0]);
+	xfer[1].speed_hz = max_freq_hz;
 
 	if (!dry)
 		ret = ioctl(spi_dev, SPI_IOC_MESSAGE(2), xfer);
